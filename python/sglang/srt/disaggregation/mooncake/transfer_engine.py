@@ -1,5 +1,7 @@
 import json
+import math
 import logging
+import resource
 from dataclasses import dataclass
 from typing import Optional
 
@@ -22,6 +24,7 @@ class MooncakeTransferEngine:
         self.hostname = hostname
         self.gpu_id = gpu_id
         self.ib_device = ib_device
+        self.raw_memory_segments = []
 
         self.initialize(
             hostname=self.hostname,
@@ -30,10 +33,29 @@ class MooncakeTransferEngine:
         self.session_id = f"{self.hostname}:{self.engine.get_rpc_port()}"
 
     def register(self, ptr, length):
-        ret_value = self.engine.register_memory(ptr, length)
-        if ret_value != 0:
-            logger.error("Mooncake memory registration failed.")
-            raise RuntimeError("Mooncake memory registration failed.")
+        logger.info(f"ptr: {ptr}, length: {length}")
+        self.raw_memory_segments.append((ptr, length))
+
+    def register_submit(self):
+        pagesize = resource.getpagesize()
+        sorted_segments = sorted(self.raw_memory_segments, key= lambda x: x[0])
+        merged_segments = []
+        (cur_addr, cur_len) = sorted_segments[0]
+        for (addr, len) in sorted_segments:
+            cur_page_aligned = math.ceil((cur_addr + cur_len) / pagesize) * pagesize
+            if addr <= cur_page_aligned:
+                cur_len = addr + len - cur_addr
+            else:
+                merged_segments.append((cur_addr, cur_len))
+                cur_addr, cur_len = addr, len
+        merged_segments.append((cur_addr, cur_len))
+        for (addr, len) in merged_segments:
+            ptr = math.floor(addr / pagesize) * pagesize
+            length = math.ceil((addr + len) / pagesize) * pagesize
+            ret_value = self.engine.register_memory(ptr, length)
+            if ret_value != 0:
+                logger.error(f"Mooncake memory registration failed, ptr: {ptr}, length: {length}")
+                raise RuntimeError("Mooncake memory registration failed.")
 
     def deregister(self, ptr):
         ret_value = self.engine.unregister_memory(ptr)

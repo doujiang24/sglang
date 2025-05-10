@@ -161,6 +161,7 @@ class MooncakeKVManager(BaseKVManager):
             self.kv_args.aux_data_ptrs, self.kv_args.aux_data_lens
         ):
             self.engine.register(aux_data_ptr, aux_data_len)
+        self.engine.register_submit()
 
     @cache
     def _connect(self, endpoint: str):
