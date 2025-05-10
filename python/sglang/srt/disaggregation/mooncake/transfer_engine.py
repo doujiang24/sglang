@@ -51,7 +51,8 @@ class MooncakeTransferEngine:
         merged_segments.append((cur_addr, cur_len))
         for (addr, len) in merged_segments:
             ptr = math.floor(addr / pagesize) * pagesize
-            length = math.ceil((addr + len) / pagesize) * pagesize
+            length = math.ceil((addr + len) / pagesize) * pagesize - ptr
+            logger.info(f"register submmit, ptr: {ptr}, length: {length}")
             ret_value = self.engine.register_memory(ptr, length)
             if ret_value != 0:
                 logger.error(f"Mooncake memory registration failed, ptr: {ptr}, length: {length}")
